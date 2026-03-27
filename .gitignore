@@ -1,0 +1,11 @@
+node_modules
+Dist
+.DS_Store
+db
+custom-templates
+media
+redis
+.env
+.env.local
+secrets
+secret-key

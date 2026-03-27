@@ -1,0 +1,143 @@
+services:
+  traefik:
+    image: traefik:v3.5.3
+    command:
+      - --log.level=debug
+      - --providers.docker=true
+      - --providers.docker.network=traefik-net
+      - --entrypoints.web.address=:80
+      - --entrypoints.auth.address=:81
+      - --entrypoints.dashboard.address=:9090
+      - --providers.docker.exposedbydefault=false
+      - --api.dashboard=true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+      - "9090:9090"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - traefik-net
+    labels:
+      - traefik.enable=true
+      - traefik.http.middlewares.compress-middleware.compress=true
+      - traefik.http.routers.dashboard.rule=PathPrefix(`/`)
+      - traefik.http.routers.dashboard.entrypoints=dashboard
+      - traefik.http.routers.dashboard.service=api@internal
+
+  auth-middleware:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      LOG_LEVEL: debug
+      OPENID_SECRET_FILE: /secrets/testapp.txt
+      OPENID_CLIENT_ID: testapp
+      OPENID_WELL_KNOWN: http://keycloak:8080/realms/myapp/.well-known/openid-configuration
+      OPENID_EXTERNAL_ORIGIN: http://localhost:81
+      SECRET: ${SECRET}
+    depends_on:
+      keycloak-setup:
+        condition: service_completed_successfully
+    volumes:
+      - ./secrets/testapp.txt:/secrets/testapp.txt:ro
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.auth-middleware.forwardauth.address=http://auth-middleware:3000/verify"
+      - "traefik.http.middlewares.auth-middleware.forwardauth.trustForwardHeader=true"
+
+  app:
+    image: traefik/whoami
+    networks:
+      - traefik-net
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.rule=PathPrefix(`/`)
+      - traefik.http.routers.whoami.entrypoints=web
+      - traefik.http.routers.whoami.middlewares=auth-middleware,compress-middleware
+      - traefik.http.services.whoami.loadbalancer.server.port=80
+
+  postgresql:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    volumes:
+      - "${ARTIFACTS_PATH:-.}/db:/var/lib/postgresql/data"
+    env_file: .env
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_DB: ${PG_DB}
+    networks:
+      - traefik-net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start --proxy-headers=xforwarded --http-enabled=true
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/localhost/8080; \
+          echo -en 'GET /health/ready' >&3; \
+          if timeout 3 cat <&3 | grep -m 1 'UP'; then \
+          exec 3<&-; exec 3>&-; exit 0; \
+          else \
+          exec 3<&-; exec 3>&-; exit 1; \
+          fi",
+        ]
+      start_period: 10s
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    env_file: .env
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgresql:5432/${PG_DB}
+      KC_DB_USERNAME: ${PG_USER}
+      KC_DB_PASSWORD: ${PG_PASS}
+      KC_PROXY: edge
+      KC_HOSTNAME_STRICT: false
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - traefik-net
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.keycloak.loadbalancer.server.port=8080
+      - traefik.http.routers.keycloak.entrypoints=auth
+      - traefik.http.routers.keycloak.rule=PathPrefix(`/`)
+      - traefik.http.routers.keycloak.middlewares=compress-middleware
+
+  keycloak-setup:
+    image: quay.io/keycloak/keycloak:26.0
+    entrypoint: ["/bin/sh", "-c", "/scripts/keycloak-setup.sh"]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    volumes:
+      - ./Scripts:/scripts
+      - ./secrets:/secrets
+    env_file: .env
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      REALM: myapp
+      CLIENT_ID: testapp
+      CLIENT_SECRET_OUTPUT: /secrets/testapp.txt
+    networks:
+      - traefik-net
+
+networks:
+  traefik-net:
+    name: traefik-net

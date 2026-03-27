@@ -1,0 +1,41 @@
+{
+  "name": "auth-middleware",
+  "version": "1.1.0",
+  "description": "Standalone Fastify middleware for Traefik ForwardAuth and OpenID Connect login flow.",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.4.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "NODE_ENV=development tsx ./Source/Apps/rest.ts",
+    "dev:host": "NODE_ENV=development LISTEN_TYPE=all tsx ./Source/Apps/rest.ts",
+    "dev:watch": "NODE_ENV=development tsx --watch ./Source/Apps/rest.ts",
+    "build": "node ./esbuild.build.config.mjs",
+    "start": "node ./Dist/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "typechecks": "npm run typecheck",
+    "lint": "oxlint ./Source"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/jwt": "^9.0.1",
+    "@fastify/oauth2": "^8.1.2",
+    "@fastify/secure-session": "^8.2.0",
+    "@fastify/sensible": "^6.0.3",
+    "fastify": "^5.5.0",
+    "fastify-plugin": "^5.0.1",
+    "fastify-type-provider-zod": "^5.0.2",
+    "pino": "^9.9.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "esbuild": "^0.27.4",
+    "oxlint": "^1.56.0",
+    "pino-pretty": "^13.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
