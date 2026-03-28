@@ -6,15 +6,6 @@ import { AppConfig } from '../Config/app.config';
 import { oneMonth } from '../Consts/days';
 import type { FastifyPluginAsyncWithTypeProvider } from '../Types/FastifyPluginAsyncWithTypeProvider';
 
-declare module '@fastify/secure-session' {
-	interface SessionData {
-		auth: {
-			accessToken: string
-			refreshToken: string
-		}
-	}
-}
-
 const verifyHeadersSchema = z.object({
 	'x-forwarded-method': z.string(),
 	'x-forwarded-proto': z.string(),

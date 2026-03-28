@@ -7,5 +7,6 @@ media
 redis
 .env
 .env.local
-secrets
+secrets/*
+!secrets/.gitkeep
 secret-key

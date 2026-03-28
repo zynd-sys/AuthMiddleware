@@ -57,13 +57,13 @@ docker compose config
 
 Important variables:
 
-- `SECRET`: 64-char hex secret used for JWT and secure-session.
+- `SECRET`: 64-char hex secret used for JWT signing.
 - `OPENID_CLIENT_ID`: OpenID client id.
 - `OPENID_SECRET` or `OPENID_SECRET_FILE`: provider client secret.
 - `OPENID_WELL_KNOWN`: OIDC discovery URL.
 - `OPENID_EXTERNAL_ORIGIN`: optional public auth origin rewrite.
 - `AUTH_COOKIE_NAME`: JWT cookie name.
-- `SESSION_COOKIE_NAME`: secure-session cookie name.
+- `SESSION_COOKIE_NAME`: OAuth state cookie name.
 - `REDIRECT_URI`: callback path.
 
 ## Coding Guidance

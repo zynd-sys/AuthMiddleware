@@ -17,6 +17,8 @@ services:
       - "9090:9090"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - traefik-net
     labels:
@@ -46,7 +48,7 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.middlewares.auth-middleware.forwardauth.address=http://auth-middleware:3000/verify"
+      - "traefik.http.middlewares.auth-middleware.forwardauth.address=${AUTH_FORWARD_URL:-http://auth-middleware:3000/verify}"
       - "traefik.http.middlewares.auth-middleware.forwardauth.trustForwardHeader=true"
 
   app:

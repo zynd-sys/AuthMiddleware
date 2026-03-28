@@ -20,6 +20,13 @@ const buildCallbackUri = (req: FastifyRequest) => {
 	return `${proto}://${host}${AppConfig.redirectUri}`;
 };
 
+const buildOAuthStateCookieOptions = () => ({
+	path: '/',
+	httpOnly: true as const,
+	sameSite: 'lax' as const,
+	secure: !AppConfig.isDevelopment,
+});
+
 export const OAuth2Plugin = fp(async (server) => {
 	await server.register(oauth2, {
 		name: 'customOAuth2',
@@ -34,6 +41,8 @@ export const OAuth2Plugin = fp(async (server) => {
 		discovery: {
 			issuer: AppConfig.openidWellKnown.toString(),
 		},
+		cookie: buildOAuthStateCookieOptions(),
+		redirectStateCookieName: AppConfig.sessionCookieName,
 	});
 });
 

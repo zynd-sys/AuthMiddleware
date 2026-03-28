@@ -9,7 +9,7 @@ interface ReadConfigOptions {
 	loadDotenv?: boolean | Parameters<LoadEnvFile>[0];
 }
 
-const envFileLoader = 'loadEnvFile' in process ? process.loadEnvFile.bind(process) : undefined;
+const envFileLoader = process.loadEnvFile
 
 const normalizeEnvKey = (key: string) => key.toLowerCase().replace(/_(.)/g, (_match, char: string) => char.toUpperCase());
 
@@ -27,7 +27,7 @@ const readConfigFile = async () => {
 };
 
 const loadDotenv = (loadEnv: ReadConfigOptions['loadDotenv']) => {
-	if (!envFileLoader || !loadEnv) return;
+	if (!loadEnv) return;
 
 	try {
 		envFileLoader('.env.local');
@@ -37,9 +37,7 @@ const loadDotenv = (loadEnv: ReadConfigOptions['loadDotenv']) => {
 		}
 
 		envFileLoader(loadEnv);
-	} catch (error) {
-		console.warn('Failed to load env file', error);
-	}
+	} catch { }
 };
 
 export async function readConfig<T extends z.ZodTypeAny>(

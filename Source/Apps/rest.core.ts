@@ -12,7 +12,6 @@ export const buildServer = async () => {
 	await fastify.register(import('../Plugins/cookie'));
 	await fastify.register(import('../Plugins/jwt'));
 	await fastify.register(import('../Plugins/serverName'));
-	await fastify.register(import('../Plugins/secureSession'));
 	await fastify.register(import('../Plugins/typeProvider'));
 	await fastify.register(import('../Plugins/oauth2'));
 

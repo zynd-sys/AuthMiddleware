@@ -35,7 +35,7 @@ Encapsulates cross-cutting infrastructure:
 
 - cookies;
 - JWT verification and signing;
-- secure session for OAuth state;
+- OAuth state cookie handling;
 - Zod type provider integration;
 - OAuth2/OpenID provider registration;
 - response `server` header.

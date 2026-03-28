@@ -17,7 +17,7 @@ The service is intentionally small and built from a few explicit layers:
 
 - `Source/Apps`: server bootstrap and startup.
 - `Source/Config`: environment parsing and runtime config.
-- `Source/Plugins`: Fastify plugins for cookies, JWT, secure session, Zod type provider, OAuth2 and response headers.
+- `Source/Plugins`: Fastify plugins for cookies, JWT, Zod type provider, OAuth2 and response headers.
 - `Source/Routes`: public HTTP API (`/health`, `/verify`).
 - `Source/Lib`: logging.
 - `Source/Types`: local shared typing helpers.
@@ -25,6 +25,8 @@ The service is intentionally small and built from a few explicit layers:
 Detailed architecture notes, request flow, strengths and weaknesses are documented in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 AI-oriented project context is documented in [docs/AI_CONTEXT.md](./docs/AI_CONTEXT.md), and coding-agent instructions are documented in [AGENTS.md](./AGENTS.md).
+
+Local setup details are documented in [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md).
 
 ## Refactoring Done
 
@@ -68,17 +70,24 @@ Run locally:
 npm run dev
 ```
 
-Run in Docker with Keycloak and Traefik:
+Run the full Docker demo with Keycloak and Traefik:
 
 ```bash
 docker compose up --build
+```
+
+For the recommended hybrid workflow, where Traefik and Keycloak stay in Docker but `auth-middleware` runs from source on the host, follow [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md). The short version is:
+
+```bash
+npm run dev:infra
+npm run dev:host
 ```
 
 ## Environment Variables
 
 Required runtime variables:
 
-- `SECRET`: 64-character hex key used for JWT and secure-session signing.
+- `SECRET`: 64-character hex key used for JWT signing and OAuth state protection.
 - `OPENID_CLIENT_ID`: OpenID client id.
 - `OPENID_SECRET` or `OPENID_SECRET_FILE`: client secret or a path to the secret file.
 - `OPENID_WELL_KNOWN`: issuer discovery URL.
@@ -87,9 +96,82 @@ Useful optional variables:
 
 - `OPENID_EXTERNAL_ORIGIN`: rewrites the provider origin in redirects when the provider is behind another public URL.
 - `AUTH_COOKIE_NAME`: JWT cookie name, default `auth`.
-- `SESSION_COOKIE_NAME`: session cookie used by the OAuth flow, default `auth-session`.
+- `SESSION_COOKIE_NAME`: cookie used to store OAuth `state` during the login flow, default `auth-session`.
 - `REDIRECT_URI`: callback path, default `/callback`.
 - `LISTEN_TYPE`: `local` or `all`.
+
+Docker demo variable:
+
+- `AUTH_FORWARD_URL`: ForwardAuth target used by Traefik in `docker-compose.yml`, default `http://auth-middleware:3000/verify`. Set it to `http://host.docker.internal:3000/verify` for hybrid local development.
+
+## Reverse Proxy And Traefik
+
+`AuthMiddleware` is designed to sit behind a reverse proxy and expects the usual forwarded request metadata. The primary integration target is Traefik ForwardAuth.
+
+Typical request flow with Traefik:
+
+1. The browser requests a protected upstream service through Traefik.
+2. Traefik calls `AuthMiddleware` on `/verify` before proxying the upstream request.
+3. If `AuthMiddleware` returns `204`, Traefik lets the request continue and forwards `x-user` to the upstream.
+4. If the user is not authenticated, `AuthMiddleware` redirects the browser into the OpenID Connect flow.
+5. After the callback completes, the browser is redirected back to the protected app root and the next ForwardAuth check succeeds.
+
+Traefik must pass the forwarded headers that the middleware uses to reconstruct the original browser request:
+
+- `x-forwarded-method`
+- `x-forwarded-proto`
+- `x-forwarded-host`
+- `x-forwarded-uri`
+- `x-forwarded-for`
+
+### Minimal Traefik Setup
+
+The middleware itself should be reachable by Traefik on the internal network, for example as `http://auth-middleware:3000/verify`.
+
+Minimal labels for the auth middleware service:
+
+```yaml
+labels:
+  - traefik.enable=true
+  - traefik.http.middlewares.auth-middleware.forwardauth.address=http://auth-middleware:3000/verify
+  - traefik.http.middlewares.auth-middleware.forwardauth.trustForwardHeader=true
+```
+
+Minimal labels for a protected upstream service:
+
+```yaml
+labels:
+  - traefik.enable=true
+  - traefik.http.routers.app.rule=PathPrefix(`/`)
+  - traefik.http.routers.app.entrypoints=web
+  - traefik.http.routers.app.middlewares=auth-middleware
+  - traefik.http.services.app.loadbalancer.server.port=80
+```
+
+This is the same pattern used by the local `docker-compose.yml`.
+
+### Public Auth Origin
+
+If the OpenID provider is discovered through an internal URL but the browser must be redirected to a different public URL, set `OPENID_EXTERNAL_ORIGIN`.
+
+Example:
+
+- internal discovery URL: `http://keycloak:8080/realms/myapp/.well-known/openid-configuration`
+- public browser-facing auth URL: `http://localhost:81`
+
+In that case:
+
+```dotenv
+OPENID_WELL_KNOWN=http://keycloak:8080/realms/myapp/.well-known/openid-configuration
+OPENID_EXTERNAL_ORIGIN=http://localhost:81
+```
+
+### Proxy Notes
+
+- Keep the callback route `REDIRECT_URI` reachable through the same public Traefik entrypoint and host that started the login flow.
+- If Traefik itself is behind another reverse proxy or load balancer, make sure forwarded headers stay consistent all the way through.
+- In hybrid local development, point Traefik at the host process with `AUTH_FORWARD_URL=http://host.docker.internal:3000/verify` and run `npm run dev:host`.
+- Direct requests to `/verify` without proxy headers are not a supported browser flow. Use Traefik for end-to-end auth testing.
 
 ## Docker Image
 
