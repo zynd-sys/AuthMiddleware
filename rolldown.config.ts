@@ -16,7 +16,7 @@ export default defineConfig({
         cleanDir: true,
         dir: './Dist',
         format: 'esm',
-        entryFileNames: '[name].mjs',
+        entryFileNames: 'index.mjs',
 
     },
 });

@@ -6,7 +6,7 @@ COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 FROM deps AS build
-COPY tsconfig.json esbuild.build.config.mjs ./
+COPY tsconfig.json rolldown.config.ts ./
 COPY Source ./Source
 RUN npm run build
 
@@ -19,7 +19,6 @@ ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-COPY --from=production-deps /app/node_modules ./node_modules
 COPY --from=production-deps /app/package.json ./package.json
 COPY --from=build /app/Dist ./Dist
 
