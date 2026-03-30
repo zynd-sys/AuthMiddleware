@@ -24,7 +24,7 @@ const buildCallbackUri = (req: FastifyRequest) => {
 export const OAuth2Plugin = fp(async (server) => {
 	await server.register(oauth2, {
 		name: 'customOAuth2',
-		scope: ['profile', 'email'],
+		scope: ['openid', 'profile', 'email'],
 		credentials: {
 			client: {
 				id: AppConfig.openidClientId,

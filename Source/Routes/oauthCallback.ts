@@ -61,7 +61,20 @@ const oauthCallback: FastifyPluginAsyncWithTypeProvider = async (fastify) => {
 			}
 
 			const { token } = await fastify.customOAuth2.getAccessTokenFromAuthorizationCodeFlow(req, reply);
-			const userInfo = openIdUserInfoSchema.parse(await fastify.customOAuth2.userinfo(token));
+			let rawUserInfo: unknown;
+
+			try {
+				rawUserInfo = await fastify.customOAuth2.userinfo(token);
+			} catch (error) {
+				req.log.error({
+					errorName: error instanceof Error ? error.name : 'UnknownError',
+					errorMessage: error instanceof Error ? error.message : 'Unknown userinfo failure',
+				}, 'Failed to fetch OpenID user info');
+
+				throw fastify.httpErrors.badGateway('OpenID userinfo request failed');
+			}
+
+			const userInfo = openIdUserInfoSchema.parse(rawUserInfo);
 			const requestOrigin = resolvePublicRequestOrigin(req);
 			const username = userInfo.preferred_username ?? userInfo.sub;
 			const fallbackRedirectUrl = buildRootRedirectUrl(requestOrigin);
