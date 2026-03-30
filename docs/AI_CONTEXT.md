@@ -8,7 +8,7 @@ Primary responsibility:
 
 - authenticate browser users via OpenID Connect;
 - issue and verify the service's own JWT cookie;
-- return `x-user` for trusted upstream services.
+- return `x-user` and `x-user-username` for trusted upstream services.
 
 Non-goals:
 
@@ -21,14 +21,15 @@ Non-goals:
 
 1. Traefik sends a request to `GET /verify`.
 2. The service checks the auth JWT cookie.
-3. If valid, it responds with `204` and sets `x-user`.
+3. If valid, it responds with `204` and sets `x-user` and `x-user-username`.
 4. If invalid or missing, it redirects the browser to the OpenID provider.
-5. The provider redirects back to `REDIRECT_URI`.
+5. The provider redirects the browser back to the service on `REDIRECT_URI`.
 6. The service exchanges the auth code, gets user info, signs its own JWT cookie, and redirects to `/`.
 
 ## Key Files
 
 - `Source/Routes/verify.ts`: main authentication flow.
+- `Source/Routes/oauthCallback.ts`: direct OpenID callback endpoint.
 - `Source/Plugins/oauth2.ts`: OpenID/OAuth2 Fastify plugin registration.
 - `Source/Config/env.ts`: runtime env schema.
 - `Source/Config/readConfig.ts`: standalone config loader.

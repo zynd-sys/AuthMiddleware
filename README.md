@@ -7,9 +7,9 @@
 The service sits in front of protected applications. When Traefik forwards a request to `/verify`, the middleware:
 
 1. Checks whether the user already has a valid JWT in an HTTP-only cookie.
-2. If the cookie is valid, returns `204` and forwards the user identifier in the `x-user` header.
+2. If the cookie is valid, returns `204` and forwards `x-user` plus `x-user-username`.
 3. If the cookie is missing, starts the OpenID Connect authorization flow.
-4. Handles the callback on `REDIRECT_URI`, exchanges the code for a token, reads the user profile, signs its own JWT, stores it in a cookie, and redirects the user back to the protected app.
+4. Handles the browser callback on its own `REDIRECT_URI`, exchanges the code for a token, reads the user profile, signs its own JWT, stores it in a cookie, and redirects the user back to the protected app.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ The service is intentionally small and built from a few explicit layers:
 - `Source/Apps`: server bootstrap and startup.
 - `Source/Config`: environment parsing and runtime config.
 - `Source/Plugins`: Fastify plugins for cookies, JWT, Zod type provider, OAuth2 and response headers.
-- `Source/Routes`: public HTTP API (`/health`, `/verify`).
+- `Source/Routes`: public HTTP API (`/health`, `/verify`, `REDIRECT_URI` callback).
 - `Source/Lib`: logging.
 - `Source/Types`: local shared typing helpers.
 
@@ -46,7 +46,7 @@ The service was refactored to be GitHub-ready and independent from the monorepo 
 Short summary:
 
 - Strengths: small surface area, clear auth responsibility, simple Fastify composition, Traefik-friendly integration, no database dependency in the middleware itself.
-- Weaknesses: only one auth strategy, no automated tests yet, callback flow still depends on correct proxy headers, and the service currently exposes only the user id instead of a richer identity contract.
+- Weaknesses: only one auth strategy, no automated tests yet, callback flow still depends on correct proxy headers, and the forwarded identity contract is intentionally small.
 
 Full review is in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
@@ -66,9 +66,10 @@ Minimum runtime variables for starting the service:
 Useful common options:
 
 - `OPENID_EXTERNAL_ORIGIN`: rewrites the provider origin in browser redirects when discovery happens through an internal URL.
-- `REDIRECT_URI`: callback path, default `/callback`.
+- `REDIRECT_URI`: callback path, default `/oauth/callback`.
 - `AUTH_COOKIE_NAME`: JWT cookie name, default `auth`.
 - `SESSION_COOKIE_NAME`: OAuth `state` cookie name, default `auth-session`.
+- `COOKIE_SECURE`: sets the `Secure` flag for both the auth JWT cookie and OAuth state cookie. Defaults to `false` in development and `true` otherwise.
 - `LISTEN_TYPE`: `local` or `all`, default `local`.
 
 For the complete application runtime reference, see [docs/ENVIRONMENT.md](./docs/ENVIRONMENT.md).
@@ -81,9 +82,10 @@ Typical request flow with Traefik:
 
 1. The browser requests a protected upstream service through Traefik.
 2. Traefik calls `AuthMiddleware` on `/verify` before proxying the upstream request.
-3. If `AuthMiddleware` returns `204`, Traefik lets the request continue and forwards `x-user` to the upstream.
+3. If `AuthMiddleware` returns `204`, Traefik lets the request continue and forwards `x-user` and `x-user-username` to the upstream.
 4. If the user is not authenticated, `AuthMiddleware` redirects the browser into the OpenID Connect flow.
-5. After the callback completes, the browser is redirected back to the protected app root and the next ForwardAuth check succeeds.
+5. The provider redirects the browser to the public `REDIRECT_URI`, which must route directly to `AuthMiddleware`.
+6. After the callback completes, the browser is redirected back to the protected app root and the next ForwardAuth check succeeds.
 
 Traefik must pass the forwarded headers that the middleware uses to reconstruct the original browser request:
 
@@ -102,8 +104,14 @@ Minimal labels for the auth middleware service:
 ```yaml
 labels:
   - traefik.enable=true
+  - traefik.http.routers.auth-callback.rule=Path(`/oauth/callback`)
+  - traefik.http.routers.auth-callback.entrypoints=web
+  - traefik.http.routers.auth-callback.priority=100
+  - traefik.http.routers.auth-callback.service=auth-middleware-service
+  - traefik.http.services.auth-middleware-service.loadbalancer.server.port=3000
   - traefik.http.middlewares.auth-middleware.forwardauth.address=http://auth-middleware:3000/verify
   - traefik.http.middlewares.auth-middleware.forwardauth.trustForwardHeader=true
+  - traefik.http.middlewares.auth-middleware.forwardauth.authResponseHeaders=x-user,x-user-username
 ```
 
 Minimal labels for a protected upstream service:
@@ -137,6 +145,7 @@ OPENID_EXTERNAL_ORIGIN=http://localhost:81
 
 ### Proxy Notes
 
+- Route `REDIRECT_URI` directly to `AuthMiddleware`; it should not be sent through the protected upstream service.
 - Keep the callback route `REDIRECT_URI` reachable through the same public Traefik entrypoint and host that started the login flow.
 - If Traefik itself is behind another reverse proxy or load balancer, make sure forwarded headers stay consistent all the way through.
 - For hybrid local development details, including `AUTH_FORWARD_URL`, see [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md).

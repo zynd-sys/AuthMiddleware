@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx ./Source/Apps/rest.ts",
     "dev:host": "NODE_ENV=development LISTEN_TYPE=all tsx ./Source/Apps/rest.ts",
-    "dev:infra": "docker compose up postgresql keycloak keycloak-setup traefik app",
+    "dev:infra": "docker compose up auth-middleware postgresql keycloak keycloak-setup traefik app",
     "dev:watch": "NODE_ENV=development tsx --watch ./Source/Apps/rest.ts",
     "build": "rolldown -c",
     "start": "node ./Dist/index.mjs",

@@ -24,7 +24,7 @@ const buildOAuthStateCookieOptions = () => ({
 	path: '/',
 	httpOnly: true as const,
 	sameSite: 'lax' as const,
-	secure: !AppConfig.isDevelopment,
+	secure: AppConfig.cookieSecure,
 });
 
 export const OAuth2Plugin = fp(async (server) => {

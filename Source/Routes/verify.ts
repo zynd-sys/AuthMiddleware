@@ -1,10 +1,10 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
 
 import { z } from 'zod';
 
 import { AppConfig } from '../Config/app.config';
-import { oneMonth } from '../Consts/days';
 import type { FastifyPluginAsyncWithTypeProvider } from '../Types/FastifyPluginAsyncWithTypeProvider';
+import { authJwtPayloadSchema, type AuthJWTPayload } from './auth.shared';
 
 const verifyHeadersSchema = z.object({
 	'x-forwarded-method': z.string(),
@@ -14,43 +14,6 @@ const verifyHeadersSchema = z.object({
 	'x-forwarded-for': z.string(),
 });
 
-const authJwtPayloadSchema = z.object({
-	userId: z.string().min(1),
-});
-
-const openIdUserInfoSchema = z.object({
-	sub: z.string().min(1),
-}).passthrough();
-
-type AuthJWTPayload = z.infer<typeof authJwtPayloadSchema>;
-type VerifyHeaders = z.infer<typeof verifyHeadersSchema>;
-
-const buildRootRedirectUrl = (headers: VerifyHeaders) => `${headers['x-forwarded-proto']}://${headers['x-forwarded-host']}/`;
-const buildForwardedRequestUrl = (headers: VerifyHeaders) => new URL(headers['x-forwarded-uri'], buildRootRedirectUrl(headers));
-
-const buildAuthCookieOptions = (headers: VerifyHeaders) => ({
-	path: '/',
-	httpOnly: true as const,
-	sameSite: 'lax' as const,
-	secure: headers['x-forwarded-proto'] === 'https' || !AppConfig.isDevelopment,
-	expires: new Date(Date.now() + (3 * oneMonth)),
-});
-
-const buildOAuthCallbackRequest = (
-	req: FastifyRequest,
-	headers: VerifyHeaders,
-) => {
-	const callbackUrl = buildForwardedRequestUrl(headers);
-	const callbackQuery = Object.fromEntries(callbackUrl.searchParams.entries());
-	const callbackRequest = Object.create(req) as FastifyRequest & {
-		query: Record<string, string>;
-	};
-
-	callbackRequest.query = callbackQuery;
-
-	return callbackRequest;
-};
-
 const readJwtPayload = async (req: FastifyRequest): Promise<AuthJWTPayload | null> => {
 	try {
 		const payload = await req.jwtVerify<AuthJWTPayload>();
@@ -58,29 +21,6 @@ const readJwtPayload = async (req: FastifyRequest): Promise<AuthJWTPayload | nul
 	} catch {
 		return null;
 	}
-};
-
-const finishAuthorization = async (
-	req: FastifyRequest,
-	reply: FastifyReply,
-	fastify: FastifyRequest['server'],
-	headers: VerifyHeaders,
-) => {
-	const callbackRequest = buildOAuthCallbackRequest(req, headers);
-	const { token } = await fastify.customOAuth2.getAccessTokenFromAuthorizationCodeFlow(callbackRequest, reply);
-	const userInfo = openIdUserInfoSchema.parse(await fastify.customOAuth2.userinfo(token));
-
-	const newJwtToken = await reply.jwtSign({
-		userId: userInfo.sub,
-	} satisfies AuthJWTPayload);
-
-	reply.setCookie(
-		AppConfig.authCookieName,
-		newJwtToken,
-		buildAuthCookieOptions(headers),
-	);
-
-	return reply.redirect(buildRootRedirectUrl(headers), 302);
 };
 
 const verify: FastifyPluginAsyncWithTypeProvider = async (fastify) => {
@@ -96,15 +36,11 @@ const verify: FastifyPluginAsyncWithTypeProvider = async (fastify) => {
 
 			if (jwtToken?.userId) {
 				reply.header('x-user', jwtToken.userId);
+				reply.header('x-user-username', jwtToken.username ?? jwtToken.userId);
 				return reply.code(204).send();
 			}
 
-			const headers = verifyHeadersSchema.parse(req.headers);
-			const forwardedRequestUrl = buildForwardedRequestUrl(headers);
-
-			if (forwardedRequestUrl.pathname === AppConfig.redirectUri) {
-				return finishAuthorization(req, reply, fastify, headers);
-			}
+			verifyHeadersSchema.parse(req.headers);
 
 			let redirectURI = await fastify.customOAuth2.generateAuthorizationUri(
 				req,

@@ -33,11 +33,14 @@ services:
       context: .
       dockerfile: ./Dockerfile
     environment:
+      NODE_ENV: development
       LOG_LEVEL: debug
       OPENID_SECRET_FILE: /secrets/testapp.txt
       OPENID_CLIENT_ID: testapp
       OPENID_WELL_KNOWN: http://keycloak:8080/realms/myapp/.well-known/openid-configuration
       OPENID_EXTERNAL_ORIGIN: http://localhost:81
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      REDIRECT_URI: ${REDIRECT_URI:-/oauth/callback}
       SECRET: ${SECRET}
     depends_on:
       keycloak-setup:
@@ -48,8 +51,14 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.auth-callback.rule=Path(`${REDIRECT_URI:-/oauth/callback}`)"
+      - "traefik.http.routers.auth-callback.entrypoints=web"
+      - "traefik.http.routers.auth-callback.priority=100"
+      - "traefik.http.routers.auth-callback.service=auth-middleware-service"
+      - "traefik.http.services.auth-middleware-service.loadbalancer.server.port=3000"
       - "traefik.http.middlewares.auth-middleware.forwardauth.address=${AUTH_FORWARD_URL:-http://auth-middleware:3000/verify}"
       - "traefik.http.middlewares.auth-middleware.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.auth-middleware.forwardauth.authResponseHeaders=x-user,x-user-username"
 
   app:
     image: traefik/whoami

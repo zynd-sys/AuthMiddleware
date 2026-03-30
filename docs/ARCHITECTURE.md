@@ -42,10 +42,11 @@ Encapsulates cross-cutting infrastructure:
 
 ### `Source/Routes`
 
-Contains two HTTP endpoints:
+Contains three HTTP endpoints:
 
 - `/health` for liveness;
-- `/verify` for the full ForwardAuth and callback flow.
+- `/verify` for the ForwardAuth decision and login redirect;
+- `REDIRECT_URI` for the direct OpenID Connect callback.
 
 ### `Source/Lib`
 
@@ -63,7 +64,7 @@ Centralized Pino logger.
 
 - The service trusts forwarded headers and therefore depends on correct proxy configuration.
 - There are no automated tests yet for the login/callback path.
-- The identity contract is minimal: only `x-user` is forwarded.
+- The identity contract is minimal: `x-user` and `x-user-username` are forwarded.
 - Session and JWT policy are hard-coded instead of being fully configurable.
 - The service currently focuses on a single provider flow and a browser-based redirect model.
 
@@ -82,7 +83,7 @@ Centralized Pino logger.
 - Moved shared config logic into local files.
 - Added a local Fastify type alias instead of importing it from another package.
 - Extracted OAuth2 setup into `Source/Plugins/oauth2.ts`.
-- Reworked `/verify` into smaller helper functions.
+- Split the browser callback into its own route instead of handling it inside `/verify`.
 - Simplified server startup and improved startup logging.
 - Converted Docker and Compose files to standalone operation.
 - Added CI and Docker publishing workflows for GitHub.
@@ -91,6 +92,6 @@ Centralized Pino logger.
 ## Recommended Next Steps
 
 - Add integration tests for `/verify` and callback handling.
-- Add support for forwarding richer user metadata such as email or preferred username.
+- Add support for forwarding richer user metadata such as email or groups if needed.
 - Make token TTL and cookie policy configurable through env vars.
 - Add explicit proxy trust configuration and stricter header validation.

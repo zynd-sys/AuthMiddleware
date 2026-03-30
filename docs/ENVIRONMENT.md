@@ -22,7 +22,8 @@ Optional:
 - `OPENID_EXTERNAL_ORIGIN`: rewrites the provider origin in browser redirects when discovery happens through an internal URL.
 - `AUTH_COOKIE_NAME`: JWT cookie name. Default: `auth`.
 - `SESSION_COOKIE_NAME`: OAuth `state` cookie name. Default: `auth-session`.
-- `REDIRECT_URI`: callback path. Default: `/callback`.
+- `COOKIE_SECURE`: sets the `Secure` flag for both the auth JWT cookie and OAuth state cookie. Default: `false` in development and `true` otherwise.
+- `REDIRECT_URI`: callback path. Default: `/oauth/callback`.
 - `CONFIG_PATH`: optional path to a JSON config file. Values from that file are merged into the normalized runtime config after env loading.
 
 Notes:

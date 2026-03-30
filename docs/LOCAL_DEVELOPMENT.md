@@ -5,7 +5,7 @@ This project supports two local development loops:
 - full Docker demo, where `auth-middleware` also runs in a container;
 - hybrid development, where Docker runs Traefik, Keycloak, Postgres and the demo app, while `auth-middleware` runs from source on the host.
 
-The hybrid loop is the most useful option when changing application code because it keeps the browser flow realistic and gives you instant feedback from `tsx`.
+The hybrid loop is the most useful option when changing most application code because it keeps the browser flow realistic and gives you instant feedback from `tsx`.
 
 ## Requirements
 
@@ -30,6 +30,7 @@ The local Docker demo and helper scripts use variables that are separate from th
 ### Docker Demo Variables
 
 - `AUTH_FORWARD_URL`: Traefik ForwardAuth target. Default: `http://auth-middleware:3000/verify`.
+- `COOKIE_SECURE`: sets the `Secure` flag for both auth cookies. Use `false` for local `http://localhost` development. Default in the demo config: `false`.
 - `PG_USER`: Postgres user for the local Keycloak database.
 - `PG_PASS`: Postgres password for the local Keycloak database.
 - `PG_DB`: Postgres database name for the local Keycloak database.
@@ -65,6 +66,7 @@ Useful URLs:
 - Traefik dashboard: `http://localhost:9090/`
 
 In this mode Traefik forwards auth requests to the `auth-middleware` container by default.
+The public callback path `REDIRECT_URI` is also routed directly to `auth-middleware`.
 
 ## Option 2: Hybrid Local Development
 
@@ -76,7 +78,7 @@ Use this when you want to edit TypeScript locally and keep the auth flow running
 AUTH_FORWARD_URL=http://host.docker.internal:3000/verify
 ```
 
-2. Start only the supporting infrastructure:
+2. Start the supporting infrastructure and the containerized callback endpoint:
 
 ```bash
 npm run dev:infra
@@ -97,8 +99,9 @@ http://localhost/
 Important notes:
 
 - `npm run dev` binds to `127.0.0.1`, which is fine for direct local checks such as `/health`, but Docker containers cannot use it for ForwardAuth.
-- `npm run dev:host` is required for the browser login flow because Traefik reaches the service through `host.docker.internal:3000`.
-- Keep browser traffic going through Traefik even in hybrid mode. The callback flow depends on Traefik sending the usual `x-forwarded-*` headers.
+- `npm run dev:host` is required for the browser login flow because ForwardAuth still points at `host.docker.internal:3000`.
+- In hybrid mode, Traefik exposes the public callback path through the containerized `auth-middleware` service, while ForwardAuth itself still points at the host process.
+- Keep browser traffic going through Traefik even in hybrid mode. The public callback path must stay on the same public host as the protected app.
 
 ## Useful Checks
 
