@@ -5,6 +5,7 @@ import type { FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
 import { AppConfig } from '../Config/app.config';
+import { buildReturnToCookieOptions } from '../Routes/auth.shared';
 
 const resolveClientSecret = async () => {
 	if (AppConfig.openidSecret) return AppConfig.openidSecret;
@@ -20,13 +21,6 @@ const buildCallbackUri = (req: FastifyRequest) => {
 	return `${proto}://${host}${AppConfig.redirectUri}`;
 };
 
-const buildOAuthStateCookieOptions = () => ({
-	path: '/',
-	httpOnly: true as const,
-	sameSite: 'lax' as const,
-	secure: AppConfig.cookieSecure,
-});
-
 export const OAuth2Plugin = fp(async (server) => {
 	await server.register(oauth2, {
 		name: 'customOAuth2',
@@ -41,7 +35,7 @@ export const OAuth2Plugin = fp(async (server) => {
 		discovery: {
 			issuer: AppConfig.openidWellKnown.toString(),
 		},
-		cookie: buildOAuthStateCookieOptions(),
+		cookie: buildReturnToCookieOptions(),
 		redirectStateCookieName: AppConfig.sessionCookieName,
 	});
 });

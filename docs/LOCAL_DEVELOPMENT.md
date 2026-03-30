@@ -102,6 +102,7 @@ Important notes:
 - `npm run dev:host` is required for the browser login flow because ForwardAuth still points at `host.docker.internal:3000`.
 - In hybrid mode, Traefik exposes the public callback path through the containerized `auth-middleware` service, while ForwardAuth itself still points at the host process.
 - Keep browser traffic going through Traefik even in hybrid mode. The public callback path must stay on the same public host as the protected app.
+- If you intentionally split the callback and protected app across sibling subdomains, set `COOKIE_DOMAIN` to the shared parent domain.
 
 ## Useful Checks
 

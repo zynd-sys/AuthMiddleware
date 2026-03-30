@@ -4,9 +4,14 @@ import { AppConfig } from '../Config/app.config';
 import type { FastifyPluginAsyncWithTypeProvider } from '../Types/FastifyPluginAsyncWithTypeProvider';
 import {
 	buildAuthCookieOptions,
+	buildForwardedRequestHeaderPresence,
 	buildRootRedirectUrl,
+	buildReturnToCookieOptions,
+	hasCookie,
 	openIdUserInfoSchema,
+	resolveRedirectTarget,
 	resolvePublicRequestOrigin,
+	resolveReturnToCookieName,
 	type AuthJWTPayload,
 } from './auth.shared';
 
@@ -28,21 +33,43 @@ const oauthCallback: FastifyPluginAsyncWithTypeProvider = async (fastify) => {
 		async handler(req, reply) {
 			const query = oauthCallbackQuerySchema.parse(req.query);
 
+			req.log.debug({
+				hasCode: Boolean(query.code),
+				hasState: Boolean(query.state),
+				hasProviderError: Boolean(query.error),
+				hasErrorDescription: Boolean(query.error_description),
+				hasAuthCookie: hasCookie(req, AppConfig.authCookieName),
+				hasOAuthStateCookie: hasCookie(req, AppConfig.sessionCookieName),
+				forwardedHeaders: buildForwardedRequestHeaderPresence(req),
+			}, 'Received OpenID callback request');
+
 			if (query.error) {
+				req.log.warn({
+					hasErrorDescription: Boolean(query.error_description),
+				}, 'OpenID provider returned an error to the callback endpoint');
+
 				throw fastify.httpErrors.unauthorized(query.error_description ?? query.error);
 			}
 
 			if (!query.code || !query.state) {
+				req.log.warn({
+					hasCode: Boolean(query.code),
+					hasState: Boolean(query.state),
+				}, 'OpenID callback is missing required authorization parameters');
+
 				throw fastify.httpErrors.badRequest('Missing authorization code or state');
 			}
 
 			const { token } = await fastify.customOAuth2.getAccessTokenFromAuthorizationCodeFlow(req, reply);
 			const userInfo = openIdUserInfoSchema.parse(await fastify.customOAuth2.userinfo(token));
 			const requestOrigin = resolvePublicRequestOrigin(req);
+			const username = userInfo.preferred_username ?? userInfo.sub;
+			const fallbackRedirectUrl = buildRootRedirectUrl(requestOrigin);
+			const redirectTarget = resolveRedirectTarget(req, fallbackRedirectUrl);
 
 			const newJwtToken = await reply.jwtSign({
 				userId: userInfo.sub,
-				username: userInfo.preferred_username ?? userInfo.sub,
+				username,
 			} satisfies AuthJWTPayload);
 
 			reply.setCookie(
@@ -50,8 +77,16 @@ const oauthCallback: FastifyPluginAsyncWithTypeProvider = async (fastify) => {
 				newJwtToken,
 				buildAuthCookieOptions(requestOrigin),
 			);
+			reply.clearCookie(resolveReturnToCookieName(), buildReturnToCookieOptions());
 
-			return reply.redirect(buildRootRedirectUrl(requestOrigin), 302);
+			req.log.debug({
+				cookieSecure: AppConfig.cookieSecure,
+				cookieDomain: AppConfig.cookieDomain,
+				hasPreferredUsername: Boolean(userInfo.preferred_username),
+				redirectTarget,
+			}, 'OpenID callback completed and issued a new auth cookie');
+
+			return reply.redirect(redirectTarget, 302);
 		},
 	});
 };

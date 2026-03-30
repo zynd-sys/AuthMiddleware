@@ -69,6 +69,7 @@ Useful common options:
 - `REDIRECT_URI`: callback path, default `/oauth/callback`.
 - `AUTH_COOKIE_NAME`: JWT cookie name, default `auth`.
 - `SESSION_COOKIE_NAME`: OAuth `state` cookie name, default `auth-session`.
+- `COOKIE_DOMAIN`: optional shared cookie domain, useful when the protected app and callback live on sibling subdomains such as `app.example.com` and `auth.example.com`.
 - `COOKIE_SECURE`: sets the `Secure` flag for both the auth JWT cookie and OAuth state cookie. Defaults to `false` in development and `true` otherwise.
 - `LISTEN_TYPE`: `local` or `all`, default `local`.
 
@@ -85,7 +86,7 @@ Typical request flow with Traefik:
 3. If `AuthMiddleware` returns `204`, Traefik lets the request continue and forwards `x-user` and `x-user-username` to the upstream.
 4. If the user is not authenticated, `AuthMiddleware` redirects the browser into the OpenID Connect flow.
 5. The provider redirects the browser to the public `REDIRECT_URI`, which must route directly to `AuthMiddleware`.
-6. After the callback completes, the browser is redirected back to the protected app root and the next ForwardAuth check succeeds.
+6. After the callback completes, the browser is redirected back to the original protected URL and the next ForwardAuth check succeeds.
 
 Traefik must pass the forwarded headers that the middleware uses to reconstruct the original browser request:
 
@@ -147,6 +148,7 @@ OPENID_EXTERNAL_ORIGIN=http://localhost:81
 
 - Route `REDIRECT_URI` directly to `AuthMiddleware`; it should not be sent through the protected upstream service.
 - Keep the callback route `REDIRECT_URI` reachable through the same public Traefik entrypoint and host that started the login flow.
+- If the protected app and callback live on sibling subdomains, set `COOKIE_DOMAIN` to their shared parent domain so the auth cookie and OAuth state cookies can be sent to both hosts.
 - If Traefik itself is behind another reverse proxy or load balancer, make sure forwarded headers stay consistent all the way through.
 - For hybrid local development details, including `AUTH_FORWARD_URL`, see [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md).
 - Direct requests to `/verify` without proxy headers are not a supported browser flow. Use Traefik for end-to-end auth testing.

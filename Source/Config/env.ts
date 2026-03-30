@@ -13,6 +13,12 @@ const normalizeBooleanEnv = (value: unknown) => {
 
 	return value;
 };
+const normalizeOptionalStringEnv = (value: unknown) => {
+	if (typeof value !== 'string') return value;
+
+	const normalizedValue = value.trim();
+	return normalizedValue.length > 0 ? normalizedValue : undefined;
+};
 
 const scheme = z.object({
 	port: z.coerce.number().positive().max(65_535).default(3_000),
@@ -33,6 +39,7 @@ const scheme = z.object({
 
 	authCookieName: z.string().default('auth'),
 	sessionCookieName: z.string().default('auth-session'),
+	cookieDomain: z.preprocess(normalizeOptionalStringEnv, z.string().trim().min(1).optional()),
 	cookieSecure: z.preprocess(normalizeBooleanEnv, z.boolean().optional()),
 	redirectUri: z.string().default('/oauth/callback').transform(normalizeRedirectUri),
 }).superRefine((envs, { addIssue }) => {
