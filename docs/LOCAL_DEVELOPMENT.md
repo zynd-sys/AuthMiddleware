@@ -23,6 +23,33 @@ cp .env.example .env
 
 The demo stack will also create `./secrets/testapp.txt` during Keycloak bootstrap. The repository keeps the `secrets/` directory tracked so the first startup has a stable bind-mount target.
 
+## Local Development Variables
+
+The local Docker demo and helper scripts use variables that are separate from the service runtime variables documented in [docs/ENVIRONMENT.md](./ENVIRONMENT.md).
+
+### Docker Demo Variables
+
+- `AUTH_FORWARD_URL`: Traefik ForwardAuth target. Default: `http://auth-middleware:3000/verify`.
+- `PG_USER`: Postgres user for the local Keycloak database.
+- `PG_PASS`: Postgres password for the local Keycloak database.
+- `PG_DB`: Postgres database name for the local Keycloak database.
+- `KEYCLOAK_ADMIN`: local Keycloak admin username.
+- `KEYCLOAK_ADMIN_PASSWORD`: local Keycloak admin password.
+
+### Keycloak Bootstrap Variables
+
+These are used by `Scripts/keycloak-setup.sh`:
+
+- `REALM`: Keycloak realm to create. Default: `myapp`.
+- `CLIENT_ID`: Keycloak client id to create. Default: `testapp`.
+- `KEYCLOAK_URL`: Keycloak base URL for admin bootstrap. Default: `http://keycloak:8080`.
+- `CLIENT_SECRET_OUTPUT`: file path where the generated client secret is written. Default: `/secrets/<CLIENT_ID>.txt`.
+
+The bootstrap helper also requires:
+
+- `KEYCLOAK_ADMIN`
+- `KEYCLOAK_ADMIN_PASSWORD`
+
 ## Option 1: Full Docker Demo
 
 Use this when you want the whole stack to run in containers:

@@ -17,6 +17,7 @@ RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit
 FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV LISTEN_TYPE=all
 EXPOSE 3000
 
 COPY --from=production-deps /app/package.json ./package.json

@@ -52,57 +52,26 @@ Full review is in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 ## Local Development
 
-Install dependencies:
-
-```bash
-npm install
-```
-
-Create your local env file:
-
-```bash
-cp .env.example .env
-```
-
-Run locally:
-
-```bash
-npm run dev
-```
-
-Run the full Docker demo with Keycloak and Traefik:
-
-```bash
-docker compose up --build
-```
-
-For the recommended hybrid workflow, where Traefik and Keycloak stay in Docker but `auth-middleware` runs from source on the host, follow [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md). The short version is:
-
-```bash
-npm run dev:infra
-npm run dev:host
-```
+Local development, Docker demo setup, and development-only environment variables are documented in [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md).
 
 ## Environment Variables
 
-Required runtime variables:
+Minimum runtime variables for starting the service:
 
 - `SECRET`: 64-character hex key used for JWT signing and OAuth state protection.
 - `OPENID_CLIENT_ID`: OpenID client id.
-- `OPENID_SECRET` or `OPENID_SECRET_FILE`: client secret or a path to the secret file.
 - `OPENID_WELL_KNOWN`: issuer discovery URL.
+- `OPENID_SECRET` or `OPENID_SECRET_FILE`: provider client secret or a path to a file that contains it.
 
-Useful optional variables:
+Useful common options:
 
-- `OPENID_EXTERNAL_ORIGIN`: rewrites the provider origin in redirects when the provider is behind another public URL.
-- `AUTH_COOKIE_NAME`: JWT cookie name, default `auth`.
-- `SESSION_COOKIE_NAME`: cookie used to store OAuth `state` during the login flow, default `auth-session`.
+- `OPENID_EXTERNAL_ORIGIN`: rewrites the provider origin in browser redirects when discovery happens through an internal URL.
 - `REDIRECT_URI`: callback path, default `/callback`.
-- `LISTEN_TYPE`: `local` or `all`.
+- `AUTH_COOKIE_NAME`: JWT cookie name, default `auth`.
+- `SESSION_COOKIE_NAME`: OAuth `state` cookie name, default `auth-session`.
+- `LISTEN_TYPE`: `local` or `all`, default `local`.
 
-Docker demo variable:
-
-- `AUTH_FORWARD_URL`: ForwardAuth target used by Traefik in `docker-compose.yml`, default `http://auth-middleware:3000/verify`. Set it to `http://host.docker.internal:3000/verify` for hybrid local development.
+For the complete application runtime reference, see [docs/ENVIRONMENT.md](./docs/ENVIRONMENT.md).
 
 ## Reverse Proxy And Traefik
 
@@ -170,7 +139,7 @@ OPENID_EXTERNAL_ORIGIN=http://localhost:81
 
 - Keep the callback route `REDIRECT_URI` reachable through the same public Traefik entrypoint and host that started the login flow.
 - If Traefik itself is behind another reverse proxy or load balancer, make sure forwarded headers stay consistent all the way through.
-- In hybrid local development, point Traefik at the host process with `AUTH_FORWARD_URL=http://host.docker.internal:3000/verify` and run `npm run dev:host`.
+- For hybrid local development details, including `AUTH_FORWARD_URL`, see [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md).
 - Direct requests to `/verify` without proxy headers are not a supported browser flow. Use Traefik for end-to-end auth testing.
 
 ## Docker Image

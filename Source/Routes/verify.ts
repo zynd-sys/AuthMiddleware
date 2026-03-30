@@ -26,6 +26,7 @@ type AuthJWTPayload = z.infer<typeof authJwtPayloadSchema>;
 type VerifyHeaders = z.infer<typeof verifyHeadersSchema>;
 
 const buildRootRedirectUrl = (headers: VerifyHeaders) => `${headers['x-forwarded-proto']}://${headers['x-forwarded-host']}/`;
+const buildForwardedRequestUrl = (headers: VerifyHeaders) => new URL(headers['x-forwarded-uri'], buildRootRedirectUrl(headers));
 
 const buildAuthCookieOptions = (headers: VerifyHeaders) => ({
 	path: '/',
@@ -34,6 +35,21 @@ const buildAuthCookieOptions = (headers: VerifyHeaders) => ({
 	secure: headers['x-forwarded-proto'] === 'https' || !AppConfig.isDevelopment,
 	expires: new Date(Date.now() + (3 * oneMonth)),
 });
+
+const buildOAuthCallbackRequest = (
+	req: FastifyRequest,
+	headers: VerifyHeaders,
+) => {
+	const callbackUrl = buildForwardedRequestUrl(headers);
+	const callbackQuery = Object.fromEntries(callbackUrl.searchParams.entries());
+	const callbackRequest = Object.create(req) as FastifyRequest & {
+		query: Record<string, string>;
+	};
+
+	callbackRequest.query = callbackQuery;
+
+	return callbackRequest;
+};
 
 const readJwtPayload = async (req: FastifyRequest): Promise<AuthJWTPayload | null> => {
 	try {
@@ -50,7 +66,8 @@ const finishAuthorization = async (
 	fastify: FastifyRequest['server'],
 	headers: VerifyHeaders,
 ) => {
-	const { token } = await fastify.customOAuth2.getAccessTokenFromAuthorizationCodeFlow(req);
+	const callbackRequest = buildOAuthCallbackRequest(req, headers);
+	const { token } = await fastify.customOAuth2.getAccessTokenFromAuthorizationCodeFlow(callbackRequest, reply);
 	const userInfo = openIdUserInfoSchema.parse(await fastify.customOAuth2.userinfo(token));
 
 	const newJwtToken = await reply.jwtSign({
@@ -83,9 +100,9 @@ const verify: FastifyPluginAsyncWithTypeProvider = async (fastify) => {
 			}
 
 			const headers = verifyHeadersSchema.parse(req.headers);
-			const uri = headers['x-forwarded-uri'];
+			const forwardedRequestUrl = buildForwardedRequestUrl(headers);
 
-			if (uri.startsWith(AppConfig.redirectUri)) {
+			if (forwardedRequestUrl.pathname === AppConfig.redirectUri) {
 				return finishAuthorization(req, reply, fastify, headers);
 			}
 

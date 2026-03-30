@@ -17,6 +17,6 @@ export default defineConfig({
         dir: './Dist',
         format: 'esm',
         entryFileNames: 'index.mjs',
-
+        sourcemap: 'inline',
     },
 });
